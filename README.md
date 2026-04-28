@@ -90,7 +90,9 @@ INFY           -2.46%      -3.70%      1.50    1236
 ADANIPORTS     -2.95%      -5.70%      1.94    1236
 ─────────────────────────────────────────────────────────
 ```
-![Rolling VAR](RollingVAR.png)
+
+![Rolling VAR](Rolling-VAR.png)
+
 ADANIPORTS CVaR/VaR = 1.94. Hindenburg report caused -19% single-day moves.
 VaR predicted -2.95%. Reality was 6× worse. CVaR captured the tail. VaR didn't.
 This is why CVaR is mandated over VaR in institutional risk frameworks.
