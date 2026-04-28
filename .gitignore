@@ -7,3 +7,5 @@ venv/
 data/
 .venv/
 venv/
+.env
+.env
