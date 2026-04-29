@@ -9,7 +9,7 @@
 
 
 **Vajra answers one question for every stock in the portfolio:**
-*"How much can I lose, how volatile is it right now, and how do I size this position?"*
+*"How much can I lose, how volatile is it right now, and how do I size this position?"*git add.
 That answer gates every downstream decision in Alpha-Core and Kuber.
 
 ***
@@ -100,7 +100,7 @@ ADANIPORTS CVaR/VaR = 1.94. Hindenburg report caused -19% single-day moves.
 VaR predicted -2.95%. Reality was 6× worse. CVaR captured the tail. VaR didn't.
 This is why CVaR is mandated over VaR in institutional risk frameworks.
 
-![Rolling VAR](Rolling-VAR.png)
+![Rolling VAR](assets/Rolling-VAR.png)
 
 ***
 
