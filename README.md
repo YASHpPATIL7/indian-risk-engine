@@ -20,6 +20,7 @@ That answer gates every downstream decision in Alpha-Core and Kuber.
 
 *Four-tab Streamlit dashboard — Price & Volatility · Return Distribution ·
 Rolling VaR Timeline · Correlation Regime Detector*
+
 ![GARCH Risk Engine Dashboard](assets/dashboard-overview.png)
 
 ***
@@ -71,9 +72,13 @@ Four distinct regimes identified from live NSE data:
 | Systemic | Mar 2022 | 0.469 | 13.9% | Russia-Ukraine — global FII selloff |
 | Sector Flight | Feb 2023 | 0.142 | 0.8% | Hindenburg — Adani down, IT/pharma up |
 | Cluster Shock | Jun 2024 | 0.256 | 12.7% | Election — PSU/infra cluster fell |
-![Correlation Regime Heatmap](assets/correlation-heatmap.png)
+
+
+
 > Mean correlation alone is misleading — Hindenburg mean = 0.142 (looks calm)
 > but hides violent sector divergence. `% pairs > 0.7` is the real crisis detector.
+
+![Correlation Regime Heatmap](assets/correlation-heatmap.png)
 
 ***
 
@@ -91,11 +96,11 @@ ADANIPORTS     -2.95%      -5.70%      1.94    1236
 ─────────────────────────────────────────────────────────
 ```
 
-![Rolling VAR](Rolling-VAR.png)
-
 ADANIPORTS CVaR/VaR = 1.94. Hindenburg report caused -19% single-day moves.
 VaR predicted -2.95%. Reality was 6× worse. CVaR captured the tail. VaR didn't.
 This is why CVaR is mandated over VaR in institutional risk frameworks.
+
+![Rolling VAR](Rolling-VAR.png)
 
 ***
 
