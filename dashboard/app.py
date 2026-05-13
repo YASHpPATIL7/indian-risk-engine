@@ -163,19 +163,46 @@ def load_price(ticker):
 
 @st.cache_data(ttl=300)
 def load_pivot():
-    with engine.connect() as c:
-        rows = c.execute(text("""
-            SELECT date, ticker, log_return FROM price_data
-            WHERE log_return IS NOT NULL ORDER BY date
-        """)).fetchall()
-    df = pd.DataFrame(rows, columns=["date","ticker","log_return"])
-    df["date"] = pd.to_datetime(df["date"])
-    return df.pivot(index="date", columns="ticker", values="log_return")
+    if engine is not None:
+        with engine.connect() as c:
+            rows = c.execute(text("""
+                SELECT date, ticker, log_return FROM price_data
+                WHERE log_return IS NOT NULL ORDER BY date
+            """)).fetchall()
+        df = pd.DataFrame(rows, columns=["date","ticker","log_return"])
+        df["date"] = pd.to_datetime(df["date"])
+        return df.pivot(index="date", columns="ticker", values="log_return")
+    # CSV fallback
+    return pd.read_csv(os.path.join(BASE, "data", "vajra_returns.csv"), index_col=0, parse_dates=True)
 
 @st.cache_data(ttl=300)
 def get_risk(ticker, conf):
-    calc = VaRCalculator(ticker=ticker, confidence=conf)
-    return calc.summary(), calc.rolling_var(window=252), calc.returns
+    if engine is not None:
+        calc = VaRCalculator(ticker=ticker, confidence=conf)
+        return calc.summary(), calc.rolling_var(window=252), calc.returns
+    # CSV fallback — compute VaR directly from returns CSV
+    rdf = pd.read_csv(os.path.join(BASE, "data", "vajra_returns.csv"), index_col=0, parse_dates=True)
+    if ticker not in rdf.columns:
+        return {}, pd.Series(dtype=float), np.array([])
+    rets = rdf[ticker].dropna().values
+    from scipy.stats import norm
+    mu, sigma = rets.mean(), rets.std()
+    z = norm.ppf(1 - conf)
+    var_h = float(np.percentile(rets, (1 - conf) * 100))
+    var_p = float(mu + z * sigma)
+    tail = rets[rets < var_h]
+    cvar_h = float(tail.mean()) if len(tail) > 0 else var_h
+    cvar_p = float(mu - sigma * (norm.pdf(z) / (1 - conf)))
+    summary = {
+        "ticker": ticker, "confidence": f"{conf*100:.0f}%",
+        "observations": len(rets),
+        "var_historical": round(var_h, 5), "var_parametric": round(var_p, 5),
+        "cvar_historical": round(cvar_h, 5), "cvar_parametric": round(cvar_p, 5),
+        "var_pct": f"{var_h*100:.2f}%", "cvar_pct": f"{cvar_h*100:.2f}%",
+        "cvar_vs_var_ratio": round(cvar_h / var_h, 3) if var_h != 0 else 0,
+    }
+    rv = pd.Series(rets).rolling(252).apply(lambda x: np.percentile(x, (1-conf)*100), raw=True)
+    return summary, rv, rets
 
 # ── sidebar ───────────────────────────────────────────────────
 with st.sidebar:
