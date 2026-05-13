@@ -7,6 +7,20 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 from sqlalchemy import text
 import sys, os
+import logging
+
+# ═══════════════════════════════════════════════════════════════
+# ROOT LOGGER — All module logs flow here (SEBI Audit Trail)
+# ═══════════════════════════════════════════════════════════════
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s | %(name)-30s | %(levelname)-8s | %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S',
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler('risk_engine_audit.log', mode='a'),
+    ]
+)
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from data_pipeline.db import get_engine
@@ -152,7 +166,7 @@ with st.sidebar:
             GARCH Risk Engine</div>
         <div style='font-size:10px;color:#4b5563;margin-top:4px;
                     text-transform:uppercase;letter-spacing:.1em'>
-            Nifty 200 · Institutional Analytics</div>
+            NSE Large-Caps · Portfolio Risk Analytics</div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -164,14 +178,15 @@ with st.sidebar:
 
     st.markdown('<div class="sec-hdr">Universe</div>', unsafe_allow_html=True)
     ca, cb = st.columns(2)
-    ca.metric("Stocks", "216"); ca.metric("Rows", "262K")
-    cb.metric("Years",  "5");   cb.metric("From", "Apr 2021")
+    ca.metric("VaR Stocks", f"{len(tickers)}"); ca.metric("Rows", "262K")
+    cb.metric("Risk Model", "14");   cb.metric("From", "Apr 2021")
 
     st.markdown('<div class="sec-hdr">Models</div>', unsafe_allow_html=True)
     st.markdown("""
     <div style='font-size:12px;color:#6b7280;line-height:2'>
     • Historical VaR<br>• Parametric VaR<br>• CVaR / Expected Shortfall<br>
-    • Rolling 252-day VaR<br>• Dynamic Correlation Regimes
+    • Rolling 252-day VaR<br>• GARCH(1,1) + DCC<br>
+    • SHAP Variance Attribution<br>• Correlation Regimes
     </div>""", unsafe_allow_html=True)
 
 # ── load data ─────────────────────────────────────────────────
@@ -188,7 +203,7 @@ st.markdown(f"""
             padding-bottom:20px'>
     <div>
         <span style='font-size:28px;font-weight:700;color:#f9fafb'>{ticker}</span>
-        <span style='font-size:13px;color:#4b5563;margin-left:10px'>NSE · Nifty 200</span>
+        <span style='font-size:13px;color:#4b5563;margin-left:10px'>NSE</span>
     </div>
     <div style='font-size:12px;color:#374151'>{conf*100:.0f}% Confidence
         · Apr 2021 → Apr 2026</div>
@@ -227,11 +242,13 @@ for col,lbl,val,sub in kpis:
 st.markdown("<div style='height:20px'></div>", unsafe_allow_html=True)
 
 # ── tabs ──────────────────────────────────────────────────────
-tab1,tab2,tab3,tab4 = st.tabs([
+tab1,tab2,tab3,tab4,tab5,tab6 = st.tabs([
     "  📈  Price & Volatility  ",
     "  📊  Return Distribution  ",
     "  📉  Rolling VaR  ",
     "  🔥  Correlation Regimes  ",
+    "  🧩  SHAP Attribution  ",
+    "  ⚡  Greeks Engine  ",
 ])
 
 # ─── TAB 1 ────────────────────────────────────────────────────
@@ -431,3 +448,237 @@ with tab4:
 
     st.markdown(f'<div class="regime-badge {cls}">{msg}</div>',
                 unsafe_allow_html=True)
+
+# ─── TAB 5 ────────────────────────────────────────────────────
+with tab5:
+    BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    shap_pct_path = os.path.join(BASE_DIR, "data", "shap_variance.csv")
+    shap_rs_path  = os.path.join(BASE_DIR, "data", "shap_var_rupees.csv")
+
+    if not os.path.exists(shap_pct_path):
+        st.warning("SHAP data not found. Run `risk_engine/shap_attribution.py` first.")
+    else:
+        shap_pct = pd.read_csv(shap_pct_path, parse_dates=["date"], index_col="date")
+        shap_rs  = pd.read_csv(shap_rs_path,  parse_dates=["date"], index_col="date") if os.path.exists(shap_rs_path) else None
+
+        stocks = shap_pct.columns.tolist()
+
+        # ── Stacked Area: Variance Contribution Over Time ──
+        fig_area = go.Figure()
+        colors = [
+            "#3b82f6","#ef4444","#10b981","#f59e0b","#8b5cf6",
+            "#ec4899","#06b6d4","#84cc16","#f97316","#6366f1",
+            "#14b8a6","#e11d48","#a855f7","#eab308"
+        ]
+        for i, stock in enumerate(stocks):
+            fig_area.add_trace(go.Scatter(
+                x=shap_pct.index, y=shap_pct[stock],
+                name=stock, stackgroup="one",
+                line=dict(width=0),
+                fillcolor=colors[i % len(colors)],
+            ))
+        fig_area.update_layout(
+            **PLOT_THEME,
+            title="SHAP Variance Decomposition — % Contribution Over Time",
+            yaxis_title="% of Portfolio Variance",
+            xaxis_title="",
+            height=450,
+            legend=dict(orientation="h", yanchor="bottom", y=-0.3, xanchor="center", x=0.5,
+                        font=dict(size=10)),
+            hovermode="x unified",
+        )
+        st.plotly_chart(fig_area, use_container_width=True)
+
+        # ── Bar: Average % Contribution ──
+        avg_pct = shap_pct.mean().sort_values(ascending=True)
+        fig_bar = go.Figure(go.Bar(
+            x=avg_pct.values,
+            y=avg_pct.index,
+            orientation="h",
+            marker=dict(
+                color=avg_pct.values,
+                colorscale=[[0, "#1e40af"], [0.5, "#3b82f6"], [1, "#ef4444"]],
+                line=dict(width=0),
+            ),
+            text=[f"{v:.1f}%" for v in avg_pct.values],
+            textposition="outside",
+            textfont=dict(color="#9ca3af", size=11),
+        ))
+        fig_bar.update_layout(
+            **PLOT_THEME,
+            title="Average Variance Contribution by Stock (%)",
+            xaxis_title="% of Portfolio Variance",
+            height=420,
+        )
+        fig_bar.update_yaxes(tickfont=dict(size=11))
+        st.plotly_chart(fig_bar, use_container_width=True)
+
+        # ── KPI row ──
+        top3 = shap_pct.mean().nlargest(3)
+        bot3 = shap_pct.mean().nsmallest(3)
+        c1,c2,c3,c4,c5,c6 = st.columns(6)
+        for col, (stock, val) in zip([c1,c2,c3], top3.items()):
+            col.metric(f"🔴 {stock}", f"{val:.1f}%", "High Risk")
+        for col, (stock, val) in zip([c4,c5,c6], bot3.items()):
+            col.metric(f"🟢 {stock}", f"{val:.1f}%", "Low Risk")
+
+        # ── ₹ Exposure Table ──
+        if shap_rs is not None:
+            st.markdown('<div class="sec-hdr">₹ Risk Exposure (₹1 Cr Portfolio)</div>',
+                        unsafe_allow_html=True)
+            latest_rs = shap_rs.iloc[-1].sort_values(ascending=False)
+            rs_df = pd.DataFrame({
+                "Stock": latest_rs.index,
+                "₹ VaR Contribution": [f"₹{v:,.0f}" for v in latest_rs.values],
+                "% Share": [f"{shap_pct.iloc[-1][s]:.1f}%" for s in latest_rs.index],
+            })
+            st.dataframe(rs_df, use_container_width=True, hide_index=True)
+
+# ─── TAB 6: GREEKS ENGINE ─────────────────────────────────────
+with tab6:
+    greeks_path = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        "data", "greeks_results.csv"
+    )
+    if os.path.exists(greeks_path):
+        gdf = pd.read_csv(greeks_path)
+        stocks_avail = gdf["stock"].unique().tolist()
+
+        st.markdown('<div class="sec-hdr">Black-Scholes Greeks — Live Data</div>',
+                    unsafe_allow_html=True)
+
+        # ── Source badges ──
+        sources = gdf["source"].unique()
+        badge_html = " ".join(
+            f'<span style="background:#1e2433;padding:4px 12px;border-radius:12px;'
+            f'font-size:12px;color:{"#10b981" if s=="garch_fallback" else "#6b9dfc"};'
+            f'border:1px solid {"#10b981" if s=="garch_fallback" else "#6b9dfc"};">{s}</span>'
+            for s in sources
+        )
+        st.markdown(f"Data Sources: {badge_html}", unsafe_allow_html=True)
+        st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
+
+        # ── Stock selector ──
+        col_sel1, col_sel2 = st.columns(2)
+        with col_sel1:
+            sel_stock = st.selectbox("Stock", stocks_avail, index=0, key="greeks_stock")
+        with col_sel2:
+            sel_expiry = st.selectbox("Expiry", ["30d", "60d", "90d"], index=0, key="greeks_expiry")
+
+        sub = gdf[(gdf["stock"] == sel_stock) & (gdf["expiry"] == sel_expiry)]
+
+        if not sub.empty:
+            spot = sub["spot"].iloc[0]
+            sigma = sub["sigma_pct"].iloc[0]
+            source = sub["source"].iloc[0]
+
+            # ── KPI Row ──
+            k1, k2, k3, k4 = st.columns(4)
+            k1.markdown(f"""
+                <div class="kpi-card">
+                    <div class="kpi-label">Spot Price</div>
+                    <div class="kpi-value">{'$' if sel_stock == 'SPY' else '₹'}{spot:,.2f}</div>
+                </div>""", unsafe_allow_html=True)
+            k2.markdown(f"""
+                <div class="kpi-card">
+                    <div class="kpi-label">GARCH σ (annualised)</div>
+                    <div class="kpi-value">{sigma:.1f}%</div>
+                </div>""", unsafe_allow_html=True)
+            k3.markdown(f"""
+                <div class="kpi-card">
+                    <div class="kpi-label">Data Source</div>
+                    <div class="kpi-value" style="font-size:16px">{source}</div>
+                </div>""", unsafe_allow_html=True)
+            atm_row = sub[sub["strike_type"] == "ATM"]
+            atm_delta = atm_row["delta_call"].iloc[0] if not atm_row.empty else 0
+            k4.markdown(f"""
+                <div class="kpi-card">
+                    <div class="kpi-label">ATM Delta</div>
+                    <div class="kpi-value">{atm_delta:.3f}</div>
+                </div>""", unsafe_allow_html=True)
+
+            st.markdown("<div style='height:20px'></div>", unsafe_allow_html=True)
+
+            # ── Greeks Table ──
+            st.markdown(f'<div class="sec-hdr">{sel_stock} — {sel_expiry} Greeks</div>',
+                        unsafe_allow_html=True)
+            display_df = sub[["strike_type", "strike", "call_price", "put_price",
+                              "delta_call", "gamma", "vega", "theta_call", "rho_call"]].copy()
+            display_df.columns = ["Strike Type", "Strike", "Call ₹", "Put ₹",
+                                  "Delta", "Gamma", "Vega", "Theta/day", "Rho"]
+            for c in ["Call ₹", "Put ₹"]:
+                display_df[c] = display_df[c].apply(lambda x: f"₹{x:,.2f}")
+            for c in ["Delta", "Gamma", "Vega", "Theta/day", "Rho"]:
+                display_df[c] = display_df[c].apply(lambda x: f"{x:.4f}")
+            st.dataframe(display_df, use_container_width=True, hide_index=True)
+
+        # ── Delta Surface Heatmap (all expiries) ──
+        st.markdown(f'<div class="sec-hdr">{sel_stock} — Delta Surface</div>',
+                    unsafe_allow_html=True)
+        stock_df = gdf[gdf["stock"] == sel_stock]
+        if not stock_df.empty:
+            pivot = stock_df.pivot_table(
+                values="delta_call", index="strike_type", columns="expiry"
+            )
+            order = ["ATM", "OTM_5pct", "OTM_10pct"]
+            pivot = pivot.reindex([s for s in order if s in pivot.index])
+            col_order = ["30d", "60d", "90d"]
+            pivot = pivot[[c for c in col_order if c in pivot.columns]]
+
+            fig_heat = go.Figure(data=go.Heatmap(
+                z=pivot.values,
+                x=pivot.columns.tolist(),
+                y=[s.replace("_", " ") for s in pivot.index.tolist()],
+                colorscale=[[0, "#1e1e3f"], [0.5, "#00d4aa"], [1, "#ffd93d"]],
+                text=[[f"{v:.3f}" for v in row] for row in pivot.values],
+                texttemplate="%{text}",
+                textfont=dict(size=14, color="white"),
+                hovertemplate="Strike: %{y}<br>Expiry: %{x}<br>Delta: %{z:.4f}<extra></extra>",
+            ))
+            fig_heat.update_layout(
+                **PLOT_THEME,
+                title=f"{sel_stock} Call Delta — Strike × Expiry",
+                xaxis_title="Expiry",
+                yaxis_title="Strike Type",
+                height=350,
+            )
+            st.plotly_chart(fig_heat, use_container_width=True)
+
+        # ── Greeks Radar Chart (ATM, selected expiry) ──
+        atm_all = gdf[(gdf["stock"] == sel_stock) & (gdf["strike_type"] == "ATM") &
+                      (gdf["expiry"] == sel_expiry)]
+        if not atm_all.empty:
+            r = atm_all.iloc[0]
+            categories = ["Delta", "Gamma×100", "Vega", "|Theta|×10", "Rho"]
+            values = [r["delta_call"], r["gamma"]*100, r["vega"],
+                      abs(r["theta_call"])*10, r["rho_call"]]
+            values.append(values[0])  # close the radar
+
+            fig_radar = go.Figure()
+            fig_radar.add_trace(go.Scatterpolar(
+                r=values,
+                theta=categories + [categories[0]],
+                fill="toself",
+                fillcolor="rgba(0,212,170,0.15)",
+                line=dict(color="#00d4aa", width=2),
+                name=f"{sel_stock} ATM {sel_expiry}",
+            ))
+            fig_radar.update_layout(
+                polar=dict(
+                    bgcolor="#0f0f0f",
+                    radialaxis=dict(visible=True, gridcolor="#1e2433",
+                                    tickfont=dict(color="#6b7280", size=10)),
+                    angularaxis=dict(gridcolor="#1e2433",
+                                     tickfont=dict(color="#e5e7eb", size=12)),
+                ),
+                paper_bgcolor="#0f0f0f",
+                font=dict(color="#e5e7eb"),
+                title=dict(text=f"{sel_stock} ATM Greeks Radar — {sel_expiry}",
+                           font=dict(color="#e5e7eb", size=14)),
+                height=400,
+                showlegend=False,
+            )
+            st.plotly_chart(fig_radar, use_container_width=True)
+    else:
+        st.warning("Greeks data not found. Run `PYTHONPATH=. python risk_engine/greeks_calculator.py` first.")
+

@@ -3,6 +3,8 @@ import pandas as pd
 from scipy.stats import norm
 from sqlalchemy import text
 from data_pipeline.db import get_engine
+import logging
+logger = logging.getLogger(__name__)
 
 
 class VaRCalculator:
@@ -138,31 +140,31 @@ class VaRCalculator:
 if __name__ == "__main__":
     tickers = ["RELIANCE", "HDFCBANK", "TCS", "INFY", "ADANIPORTS"]
 
-    print(f"\n{'─'*65}")
-    print(f"{'Ticker':<12} {'VaR 95%':>10} {'CVaR 95%':>10} "
+    logger.info(f"\n{'─'*65}")
+    logger.info(f"{'Ticker':<12} {'VaR 95%':>10} {'CVaR 95%':>10} "
           f"{'CVaR/VaR':>10} {'N':>6}")
-    print(f"{'─'*65}")
+    logger.info(f"{'─'*65}")
 
     for t in tickers:
         try:
             calc = VaRCalculator(ticker=t, confidence=0.95)
             s    = calc.summary()
-            print(f"{s['ticker']:<12} "
+            logger.info(f"{s['ticker']:<12} "
                   f"{s['var_pct']:>10} "
                   f"{s['cvar_pct']:>10} "
                   f"{s['cvar_vs_var_ratio']:>10} "
                   f"{s['observations']:>6}")
         except ValueError as e:
-            print(f"{t:<12} ERROR: {e}")
+            logger.info(f"{t:<12} ERROR: {e}")
 
-    print(f"{'─'*65}\n")
+    logger.info(f"{'─'*65}\n")
 
     # Deep dive on RELIANCE
-    print("── RELIANCE Full Risk Report ──────────────────────────────")
+    logger.info("── RELIANCE Full Risk Report ──────────────────────────────")
     calc = VaRCalculator("RELIANCE", confidence=0.95)
     for k, v in calc.summary().items():
-        print(f"  {k:<22} : {v}")
-    print()
+        logger.info(f"  {k:<22} : {v}")
+    logger.info()
 
     # Quick rolling VaR print for RELIANCE
 calc = VaRCalculator("RELIANCE", confidence=0.95)
@@ -171,9 +173,9 @@ rolling = calc.rolling_var(window=252)
 returns_df = pd.Series(calc.returns)
 
 # Show VaR at key dates by index position
-print("\n── Rolling VaR snapshots (252-day window) for Reliance Stock ──")
-print(f"  Earliest available : {rolling.dropna().iloc[0]*100:.2f}%")
-print(f"  Median (5yr)       : {rolling.dropna().median()*100:.2f}%")
-print(f"  Worst ever         : {rolling.dropna().min()*100:.2f}%")
-print(f"  Best ever (calmest): {rolling.dropna().max()*100:.2f}%")
-print(f"  Current (today)    : {rolling.dropna().iloc[-1]*100:.2f}%")
+logger.info("\n── Rolling VaR snapshots (252-day window) for Reliance Stock ──")
+logger.info(f"  Earliest available : {rolling.dropna().iloc[0]*100:.2f}%")
+logger.info(f"  Median (5yr)       : {rolling.dropna().median()*100:.2f}%")
+logger.info(f"  Worst ever         : {rolling.dropna().min()*100:.2f}%")
+logger.info(f"  Best ever (calmest): {rolling.dropna().max()*100:.2f}%")
+logger.info(f"  Current (today)    : {rolling.dropna().iloc[-1]*100:.2f}%")

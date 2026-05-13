@@ -2,10 +2,8 @@ __pycache__/
 *.pyc
 .env
 venv/
-.vscode/
-*.csv
-data/
 .venv/
-venv/
-.env
-.env
+.vscode/
+.DS_Store
+risk_engine_audit.log
+1.py

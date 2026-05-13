@@ -1,6 +1,8 @@
 import os
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, text
+import logging
+logger = logging.getLogger(__name__)
 
 load_dotenv()
 
@@ -17,6 +19,6 @@ if __name__ == "__main__":
     engine = get_engine(echo=True)
     with engine.connect() as conn:
         row = conn.execute(text("SELECT version()")).fetchone()
-        print(f"\n✅ Connected to: {row[0]}\n")
-        print(f"Pool size     : {engine.pool.size()}")
-        print(f"Checked out   : {engine.pool.checkedout()}")
+        logger.info(f"\n✅ Connected to: {row[0]}\n")
+        logger.info(f"Pool size     : {engine.pool.size()}")
+        logger.info(f"Checked out   : {engine.pool.checkedout()}")

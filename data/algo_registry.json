@@ -1,0 +1,17 @@
+{
+  "SEBI-ALGO-GARCH_MEANREVERT_V1-20260513130341": {
+    "strategy_name": "GARCH_MeanRevert_V1",
+    "description": "Mean-reversion strategy gated by GARCH volatility regime",
+    "algo_id": "SEBI-ALGO-GARCH_MEANREVERT_V1-20260513130341",
+    "registered_at": "2026-05-13T13:03:41.232355+00:00",
+    "status": "HALTED",
+    "risk_limits": {
+      "max_order_value_inr": 5000000,
+      "max_position_pct": 0.1,
+      "max_portfolio_var_pct": 0.05,
+      "max_garch_sigma": 0.04,
+      "correlation_crisis_threshold": 0.45
+    },
+    "halted_at": "2026-05-13T13:03:41.232743+00:00"
+  }
+}

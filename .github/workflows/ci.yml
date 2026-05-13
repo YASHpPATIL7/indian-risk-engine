@@ -1,0 +1,53 @@
+name: CI — GARCH Risk Engine
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11"]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run pytest
+        env:
+          PYTHONPATH: .
+        run: |
+          pytest tests/ -v --tb=short
+
+      - name: Verify core imports
+        env:
+          PYTHONPATH: .
+        run: |
+          python -c "
+          from risk_engine.var_calculator import VaRCalculator
+          from risk_engine.greeks_calculator import GreeksCalculator
+          from risk_engine.sebi_compliance import AlgoRegistry, PreTradeCheck, kill_switch
+          print('All core imports OK')
+          "

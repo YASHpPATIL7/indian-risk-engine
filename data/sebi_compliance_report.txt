@@ -1,0 +1,18 @@
+======================================================================
+SEBI ALGO TRADING COMPLIANCE REPORT
+Generated: 2026-05-13T13:03:41.232939+00:00
+Reference: SEBI/HO/MRD2/PoD-2/P/CIR/2024/172
+======================================================================
+
+Total Registered Algos: 1
+Active: 0
+Halted: 1
+
+─── SEBI-ALGO-GARCH_MEANREVERT_V1-20260513130341 ───
+  Strategy:    GARCH_MeanRevert_V1
+  Status:      HALTED
+  Registered:  2026-05-13T13:03:41.232355+00:00
+  Max Order:   ₹5,000,000
+  Max Position:10%
+  Max VaR:     5.0%
+  Vol Guardrail: 4.0%
