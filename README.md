@@ -5,9 +5,9 @@
 
 [![CI](https://github.com/YASHpPATIL7/indian-risk-engine/actions/workflows/ci.yml/badge.svg)](https://github.com/YASHpPATIL7/indian-risk-engine/actions/workflows/ci.yml)
 [![Python 3.11](https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white)](https://python.org)
-[![pytest](https://img.shields.io/badge/tests-14%2F14%20passing-10b981)](https://github.com/YASHpPATIL7/indian-risk-engine/actions)
+[![pytest](https://img.shields.io/badge/tests-44%2F44%20passing-10b981)](https://github.com/YASHpPATIL7/indian-risk-engine/actions)
 
-**Live Dashboard:** [Streamlit Cloud →](#) &nbsp;|&nbsp; **Paper:** [arXiv →](#)
+**Live Dashboard:** [Streamlit Cloud →](https://indian-risk-engine-fdjkqvvpks4wrjaiu5svhm.streamlit.app) &nbsp;|&nbsp; **Paper:** [arXiv →](#)
 
 ---
 
