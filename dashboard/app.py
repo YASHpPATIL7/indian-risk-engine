@@ -76,7 +76,10 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
 </style>
 """, unsafe_allow_html=True)
 
-engine = get_engine(echo=False)
+try:
+    engine = get_engine(echo=False)
+except Exception:
+    engine = None  # Dashboard reads CSVs — DB is optional
 
 PLOT_THEME = dict(
     template="plotly_dark",
