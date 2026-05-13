@@ -167,15 +167,15 @@ if __name__ == "__main__":
     logger.info()
 
     # Quick rolling VaR print for RELIANCE
-calc = VaRCalculator("RELIANCE", confidence=0.95)
-rolling = calc.rolling_var(window=252)
+    calc = VaRCalculator("RELIANCE", confidence=0.95)
+    rolling = calc.rolling_var(window=252)
 
-returns_df = pd.Series(calc.returns)
+    returns_df = pd.Series(calc.returns)
 
-# Show VaR at key dates by index position
-logger.info("\n── Rolling VaR snapshots (252-day window) for Reliance Stock ──")
-logger.info(f"  Earliest available : {rolling.dropna().iloc[0]*100:.2f}%")
-logger.info(f"  Median (5yr)       : {rolling.dropna().median()*100:.2f}%")
-logger.info(f"  Worst ever         : {rolling.dropna().min()*100:.2f}%")
-logger.info(f"  Best ever (calmest): {rolling.dropna().max()*100:.2f}%")
-logger.info(f"  Current (today)    : {rolling.dropna().iloc[-1]*100:.2f}%")
+    # Show VaR at key dates by index position
+    logger.info("\n── Rolling VaR snapshots (252-day window) for Reliance Stock ──")
+    logger.info(f"  Earliest available : {rolling.dropna().iloc[0]*100:.2f}%")
+    logger.info(f"  Median (5yr)       : {rolling.dropna().median()*100:.2f}%")
+    logger.info(f"  Worst ever         : {rolling.dropna().min()*100:.2f}%")
+    logger.info(f"  Best ever (calmest): {rolling.dropna().max()*100:.2f}%")
+    logger.info(f"  Current (today)    : {rolling.dropna().iloc[-1]*100:.2f}%")
