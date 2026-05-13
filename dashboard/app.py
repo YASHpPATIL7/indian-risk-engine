@@ -125,24 +125,41 @@ def add_event_line(fig, date_str, label, row=None, col=None):
     fig.add_annotation(**ann_kwargs)
 
 # ── cached loaders ────────────────────────────────────────────
+BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
 @st.cache_data(ttl=300)
 def load_tickers():
-    with engine.connect() as c:
-        return [r[0] for r in c.execute(
-            text("SELECT DISTINCT ticker FROM price_data ORDER BY ticker")
-        ).fetchall()]
+    if engine is not None:
+        with engine.connect() as c:
+            return [r[0] for r in c.execute(
+                text("SELECT DISTINCT ticker FROM price_data ORDER BY ticker")
+            ).fetchall()]
+    # CSV fallback (Streamlit Cloud — no DB)
+    rdf = pd.read_csv(os.path.join(BASE, "data", "vajra_returns.csv"), index_col=0, nrows=1)
+    return sorted(rdf.columns.tolist())
 
 @st.cache_data(ttl=300)
 def load_price(ticker):
-    with engine.connect() as c:
-        rows = c.execute(text("""
-            SELECT date, close, adj_close, volume, log_return, rolling_vol_30
-            FROM price_data WHERE ticker=:t ORDER BY date
-        """), {"t": ticker}).fetchall()
-    df = pd.DataFrame(rows, columns=["date","close","adj_close",
-                                      "volume","log_return","rolling_vol_30"])
-    df["date"] = pd.to_datetime(df["date"])
-    return df
+    if engine is not None:
+        with engine.connect() as c:
+            rows = c.execute(text("""
+                SELECT date, close, adj_close, volume, log_return, rolling_vol_30
+                FROM price_data WHERE ticker=:t ORDER BY date
+            """), {"t": ticker}).fetchall()
+        df = pd.DataFrame(rows, columns=["date","close","adj_close",
+                                          "volume","log_return","rolling_vol_30"])
+        df["date"] = pd.to_datetime(df["date"])
+        return df
+    # CSV fallback
+    rdf = pd.read_csv(os.path.join(BASE, "data", "vajra_returns.csv"), index_col=0, parse_dates=True)
+    if ticker in rdf.columns:
+        df = pd.DataFrame({"date": rdf.index, "log_return": rdf[ticker].values})
+        df["close"] = (1 + df["log_return"].fillna(0)).cumprod() * 100
+        df["adj_close"] = df["close"]
+        df["volume"] = 0
+        df["rolling_vol_30"] = df["log_return"].rolling(30).std() * np.sqrt(252) * 100
+        return df
+    return pd.DataFrame(columns=["date","close","adj_close","volume","log_return","rolling_vol_30"])
 
 @st.cache_data(ttl=300)
 def load_pivot():
