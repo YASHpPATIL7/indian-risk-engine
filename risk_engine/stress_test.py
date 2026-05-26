@@ -66,8 +66,13 @@ def run_stress_test(scenario_name, start, end):
     daily_pnl     = daily_returns * PORTFOLIO_VALUE
     daily_loss    = -daily_pnl
 
-    # Cumulative P&L (starts at 0)
-    cumulative_pnl = daily_pnl.cumsum()
+    # Fix 2026-05-27: proper compound cumulative P&L for log returns.
+    # daily_returns are log returns. cumsum() gives sum of log returns, not compound P&L.
+    # Correct: cumulative_compound = exp(sum(log_returns)) - 1, then × portfolio value.
+    # Error vs linear: ~1-2% for 20-day windows. Small but wrong.
+    log_cumsum     = np.cumsum(daily_returns)        # sum of log returns
+    cum_return     = np.exp(log_cumsum) - 1          # compound total return
+    cumulative_pnl = cum_return * PORTFOLIO_VALUE    # ₹ P&L (correct compounding)
 
     # Metrics
     peak_loss_idx      = daily_loss.argmax()

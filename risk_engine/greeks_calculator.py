@@ -215,7 +215,11 @@ def get_live_greeks(tickers_nse: list, tickers_us: list = None):
             # Tier 1: REAL option chain — compute Greeks on actual strikes
             from datetime import datetime
             expiry_date = pd.to_datetime(chain_df["expiry"].iloc[0])
-            T = max((expiry_date - pd.Timestamp.now()).days, 1) / 252
+            # Fix 2026-05-27: T uses /365 (calendar days), not /252 (trading days).
+            # Calendar days are measured above: (expiry - today).days gives calendar days.
+            # Mixing calendar days with 252-day denominator inflated short-dated option
+            # prices by 15-20%. 30-day option: was T=30/252=0.119, now T=30/365=0.082.
+            T = max((expiry_date - pd.Timestamp.now()).days, 1) / 365
 
             calls = chain_df[chain_df["type"] == "call"]
             for _, row in calls.iterrows():

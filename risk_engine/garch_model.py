@@ -247,16 +247,30 @@ for stock in returns_pct.columns:
         sigma_dict[stock] = cond_vol
         z_dict[stock] = z_scores
 
-        omega = result.params['omega']
-        alpha = result.params['alpha[1]']
-        beta  = result.params['beta[1]']
-        gamma = result.params.get('gamma[1]', 0.0)
-        ar1   = result.params.get('Lag 1',    0.0)  # ARMA AR(1) coeff
-        # ar1 = 0.0 for all non-ARMA stocks — harmless
-        # For standard GARCH gamma = 0 (parameter doesn't exist)
-        # For GJR gamma > 0 means bad news amplifies volatility more than good news
-        # EGARCH persistence is different — α+β still works as approximation
-        # but flag it
+        # Fix 2026-05-27: robust parameter extraction for EGARCH.
+        # EGARCH in arch uses different param names: 'alpha[1]' may not exist.
+        # Hardcoded key access causes silent drop of ICICIBANK via broad except.
+        # Now uses .get() with fallback scanning and logs a warning if key missing.
+        omega = result.params.get('omega', result.params.get('Omega', 0.0))
+        # Try GARCH-style names first, then EGARCH-style alternatives
+        if 'alpha[1]' in result.params:
+            alpha = result.params['alpha[1]']
+        elif 'alpha' in result.params:
+            alpha = result.params['alpha']
+        else:
+            # EGARCH: first non-omega, non-beta, non-gamma param as alpha proxy
+            alpha_keys = [k for k in result.params.index
+                          if k not in ('omega', 'Omega') and 'beta' not in k
+                          and 'gamma' not in k and 'nu' not in k and 'Lag' not in k]
+            alpha = result.params[alpha_keys[0]] if alpha_keys else 0.0
+            logger.warning("  %s: 'alpha[1]' not found in params, using '%s'=%.4f",
+                           stock, alpha_keys[0] if alpha_keys else 'NONE', alpha)
+
+        beta  = result.params.get('beta[1]',  result.params.get('beta', 0.0))
+        gamma = result.params.get('gamma[1]', result.params.get('gamma', 0.0))
+        ar1   = result.params.get('Lag 1',    0.0)
+        # For standard GARCH gamma = 0. For GJR gamma > 0 = leverage.
+        # EGARCH persistence is |beta| — flag it.
                 # persistence calculation — works for all model types
         is_egarch = (stock in ARMA_STOCKS and ARMA_STOCKS[stock]['vol'] == 'EGARCH')
 

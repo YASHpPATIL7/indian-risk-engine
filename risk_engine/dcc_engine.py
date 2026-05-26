@@ -36,10 +36,12 @@ logger.info(f"Sigma matrix loaded: {SIGMA.shape}")
 logger.info(f"Stocks: {stocks}\n")
 
 # ── 2. COMPUTE Q_BAR (unconditional correlation) ──────────────────────────────
-# Q_bar = (1/T) * sum of z_t z_t' for all t
-# This is just the sample correlation matrix of standardised shocks
-Q_bar = np.cov(Z.T)   # (N × N)
-# np.cov already divides by T-1 and demeans — correct for Q_bar estimation
+# Fix 2026-05-27: was np.cov(Z.T) — that demeans + applies Bessel's correction,
+# producing a covariance matrix, not a correlation matrix. a_hat/b_hat were then
+# optimised against that unnormalised Q_bar, but the generation pass used a
+# normalised one — parameters were mathematically inconsistent (Engle 2002).
+# Now using np.corrcoef uniformly so MLE and generation use the same matrix.
+Q_bar = np.corrcoef(Z.T)   # (N × N) — proper correlation matrix
 
 logger.info("Q_bar (unconditional correlation matrix):")
 logger.info(np.round(Q_bar, 4))
@@ -133,13 +135,9 @@ if not result.success:
 # ── 5. GENERATE FULL DCC MATRICES ─────────────────────────────────────────────
 logger.info("--- GENERATING CORRELATION + COVARIANCE CUBES ---")
 
-# Normalise Q_bar to proper correlation matrix
-std_qbar = np.sqrt(np.diag(Q_bar))
-Q_bar_normalised = Q_bar / np.outer(std_qbar, std_qbar)
-Q_bar = Q_bar_normalised
-
 rho_cube = np.zeros((T, N, N))   # T × N × N correlation matrices
 cov_cube = np.zeros((T, N, N))   # T × N × N covariance matrices
+# Fix 2026-05-27: Q_bar already a corrcoef matrix — no normalisation needed
 Q_t      = Q_bar.copy()
 
 

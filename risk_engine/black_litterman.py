@@ -108,8 +108,11 @@ for s, w in market_weights.sort_values(ascending=False).items():
 
 
 # ── 3. IMPLIED PRIOR RETURNS (MARKET EQUILIBRIUM) ─────────────
-# delta = risk aversion. 2 to 3 is common as a practical choice.
-delta = 1.0
+# Fix 2026-05-27: delta changed from 1.0 → 2.5 (He-Litterman standard).
+# delta=1.0 understates equilibrium implied returns by ~60% vs delta=2.5.
+# Kuber (portfolio_optimizer/black_litterman.py) already uses delta=2.5.
+# Both must match for cross-system consistency.
+delta = 2.5
 
 prior = black_litterman.market_implied_prior_returns(
     market_caps=market_caps,
