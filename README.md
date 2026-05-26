@@ -1,4 +1,4 @@
-# 📉 GARCH Risk Engine
+# Indian Risk Engine
 
 > **Institutional-grade portfolio risk analytics for NSE equities.**  
 > GARCH(1,1) volatility → DCC dynamic correlation → VaR/CVaR → Monte Carlo → Stress Testing → Greeks → SHAP attribution — all in one pipeline.
@@ -7,19 +7,29 @@
 [![Python 3.11](https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white)](https://python.org)
 [![pytest](https://img.shields.io/badge/tests-44%2F44%20passing-10b981)](https://github.com/YASHpPATIL7/indian-risk-engine/actions)
 
-**Live Dashboard:** [Streamlit Cloud →](https://indian-risk-engine-fdjkqvvpks4wrjaiu5svhm.streamlit.app) &nbsp;|&nbsp; **Paper:** [arXiv →](#)
+**Live Dashboard:** [Streamlit Cloud →](https://indian-risk-engine-fdjkqvvpks4wrjaiu5svhm.streamlit.app)
 
 ---
 
 ## What This Does
 
-The GARCH Risk Engine answers three questions for every stock in the portfolio:
+The Indian Risk Engine answers three questions for every stock in the portfolio:
 
 1. **How much can I lose?** → VaR, CVaR, Monte Carlo VaR
 2. **How volatile is it right now?** → GARCH(1,1) conditional volatility, DCC correlations
 3. **Where is the risk concentrated?** → SHAP variance decomposition, PCA, stress tests
 
 Every downstream decision — signal generation, position sizing, rebalancing — is gated by this engine's output.
+
+*Part of the **Indian Risk Engine → Alpha-Core → Portfolio Optimizer** quantitative pipeline.*
+
+```
+Indian Risk Engine  →  Alpha-Core (alpha-core)  →  Portfolio Optimizer (ml-portfolio-optimizer)
+     (this repo)             Signal engine                  Allocation engine
+
+DCC covariance (Σ) feeds Portfolio Optimizer's Black-Litterman prior.
+CVaR output triggers the RebalancingAgent's REDUCE_EXPOSURE decision.
+```
 
 ---
 
