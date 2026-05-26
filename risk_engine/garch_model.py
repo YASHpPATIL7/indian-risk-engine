@@ -23,13 +23,15 @@ result = model.fit(disp='off')
 logger.info(result.summary())
 
 # ── 3. Extract parameters ─────────────────────────────────────
-omega = result.params['omega']
-alpha = result.params['alpha[1]']
-beta  = result.params['beta[1]']
+# Note: standard GARCH(1,1) reliably uses 'alpha[1]' and 'beta[1]'.
+# Using .get() for consistency with the production loop below (Bug #6 fix).
+omega = result.params.get('omega', 0.0)
+alpha = result.params.get('alpha[1]', result.params.get('alpha', 0.0))
+beta  = result.params.get('beta[1]',  result.params.get('beta',  0.0))
 
-lrv       = omega / (1 - alpha - beta)
-lr_vol    = np.sqrt(lrv)
-half_life = np.log(0.5) / np.log(alpha + beta)
+lrv       = omega / (1 - alpha - beta) if (alpha + beta) < 1 else float('nan')
+lr_vol    = np.sqrt(lrv) if not np.isnan(lrv) else float('nan')
+half_life = np.log(0.5) / np.log(alpha + beta) if (alpha + beta) < 1 else float('inf')
 
 logger.info("\n─── GARCH(1,1) Parameters ───────────────────────────")
 logger.info(f"  ω  (omega)        : {omega:.6f}")
