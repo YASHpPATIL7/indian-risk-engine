@@ -43,7 +43,7 @@ Q_bar = np.cov(Z.T)   # (N × N)
 
 logger.info("Q_bar (unconditional correlation matrix):")
 logger.info(np.round(Q_bar, 4))
-logger.info()
+logger.info("")
 
 # ── 3. DCC LOG-LIKELIHOOD FUNCTION ───────────────────────────────────────────
 def dcc_loglikelihood(params, Z, Q_bar):
@@ -80,7 +80,7 @@ def dcc_loglikelihood(params, Z, Q_bar):
             return 1e10  # R_t not positive definite — skip
 
         R_inv  = np.linalg.inv(R_t)
-        ll    += -0.5 * (logdet + float(z_t.T @ R_inv @ z_t))
+        ll    += -0.5 * (logdet + (z_t.T @ R_inv @ z_t).item())
 
     return -ll  # return NEGATIVE log-likelihood for minimisation
 

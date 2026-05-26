@@ -10,7 +10,8 @@ logger = logging.getLogger(__name__)
 
 # ── 1. Fetch Nifty 50 data ─────────────────────────────────────
 ticker = "^NSEI"
-data = yf.download(ticker, start="2018-01-01", end="2026-04-29", auto_adjust=True)
+today  = pd.Timestamp.today().strftime("%Y-%m-%d")
+data = yf.download(ticker, start="2018-01-01", end=today, auto_adjust=True)
 prices = data['Close'].dropna().squeeze()
 returns = np.log(prices / prices.shift(1)).dropna() * 100  # % scale
 
