@@ -164,7 +164,7 @@ if __name__ == "__main__":
     calc = VaRCalculator("RELIANCE", confidence=0.95)
     for k, v in calc.summary().items():
         logger.info(f"  {k:<22} : {v}")
-    logger.info()
+    logger.info("")
 
     # Quick rolling VaR print for RELIANCE
     calc = VaRCalculator("RELIANCE", confidence=0.95)

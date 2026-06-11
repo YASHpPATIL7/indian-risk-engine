@@ -233,16 +233,9 @@ logger.info(f"  data/dcc_covariance.npy   → Σ_t cube  {cov_cube.shape}")
 
 with open(os.path.join(BASE_DIR, "data", "vajra_dcc_rho.pkl"), "wb") as f:
     pickle.dump({"rho": rho_cube, "dates": dates, "stocks": stocks}, f)
-# ... rest unchanged
-
-
-# ── 7. SAVE OUTPUTS ───────────────────────────────────────────────────────────
-logger.info("\n--- SAVING ---")
-
-with open(os.path.join(BASE_DIR, "data", "vajra_dcc_rho.pkl"), "wb") as f:
-    pickle.dump({"rho": rho_cube, "dates": dates, "stocks": stocks}, f)
 
 with open(os.path.join(BASE_DIR, "data", "vajra_dcc_cov.pkl"), "wb") as f:
+
     pickle.dump({"cov": cov_cube, "dates": dates, "stocks": stocks}, f)
 
 params_df = pd.DataFrame({

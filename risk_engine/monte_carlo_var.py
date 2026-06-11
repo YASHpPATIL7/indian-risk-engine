@@ -96,16 +96,11 @@ weights = np.asarray(weights, dtype=np.float64, order="C")
 
 with np.errstate(divide="ignore", over="ignore", invalid="ignore"):
     sim_asset_returns_pct = np.dot(L, Z)
-    sim_port_returns_pct = np.dot(weights, sim_asset_returns_pct)
+    sim_port_returns_pct  = np.dot(weights, sim_asset_returns_pct)
 
-logger.info("sim_asset finite:", np.isfinite(sim_asset_returns_pct).all())
-logger.info("sim_port finite :", np.isfinite(sim_port_returns_pct).all())
-logger.info(np.isfinite(L).all(), np.isfinite(Z).all())
-sim_asset_returns_pct = L @ Z   # still in % return units
-
-# Portfolio return for each scenario
-# weights: (N,), sim_asset_returns_pct: (N, N_SIMS)
-sim_port_returns_pct = weights @ sim_asset_returns_pct
+logger.info(f"sim_asset finite: {np.isfinite(sim_asset_returns_pct).all()}")
+logger.info(f"sim_port finite : {np.isfinite(sim_port_returns_pct).all()}")
+logger.info(f"L finite: {np.isfinite(L).all()}  Z finite: {np.isfinite(Z).all()}")
 
 # Convert to decimal return
 sim_port_returns_dec = sim_port_returns_pct / 100.0
