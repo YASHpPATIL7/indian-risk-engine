@@ -198,7 +198,10 @@ def get_live_greeks(tickers_nse: list, tickers_us: list = None):
         tickers_us = []
 
     records = []
-    EXPIRIES_FALLBACK = {"30d": 30/252, "60d": 60/252, "90d": 90/252}
+    # Fix 2026-06-12: fallback was still /252 after the main path moved to /365
+    # (calendar-day convention for option expiry). A parse failure would have
+    # silently reverted to the old inflated-T bug.
+    EXPIRIES_FALLBACK = {"30d": 30/365, "60d": 60/365, "90d": 90/365}
     STRIKE_OFFSETS = {"ATM": 1.00, "OTM_5pct": 1.05, "OTM_10pct": 1.10}
 
     # ── NSE STOCKS ──

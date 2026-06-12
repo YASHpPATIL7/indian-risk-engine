@@ -518,20 +518,78 @@ That's a 21% reporting error in the stress number. Ironically, log-return linear
 
 ---
 
-### Bug A1 — CRITICAL: XGBoost early-stops on the test set (data leakage)
+### Bug 17 — CRITICAL: predict_proba is smoothed, not filtered (HMM Look-ahead Part 2)
+**Severity:** CRITICAL  
+**Files fixed:** `alpha-core/alpha_core/hmm_regime.py` (~line 589), `alpha-core/alpha_core/kelly_sizing.py` (docstring ~line 107)
+
+**What the bug was:**
+The code previously used `hmmlearn.predict_proba()` to decode historical regime labels.
+```python
+filtered_probs = model.predict_proba(X)   # Returns smoothed posteriors!
+```
+
+**Why it matters:**
+`predict_proba()` runs the forward-backward algorithm, producing smoothed posteriors that condition on the full sample (including future data). Using smoothed labels in a backtest is pure look-ahead bias. Lagging a smoothed label does not remove look-ahead.
+
+**The fix:**
+Implemented an explicit forward-only recursion using the fitted model's parameters:
+```python
+# Causal, no look-ahead: P(state | obs_1..obs_t)
+filtered_probs = filtered_state_probs(model, X)
+```
+**Label diff %:** 3.01% (52 of 1,729 days relabeled; verified against git HEAD).
+Day counts moved from Bull 632 / Sideways 976 / Bear 121 (smoothed) to
+Bull 638 / Sideways 968 / Bear 123 (filtered). The flips concentrate around
+regime transitions — exactly where smoothing uses future information.
+
+**Empirical impact (this is the important part):**
+- The paper's Panel D headline result — Bear-regime gross FII flow
+  Granger-causing market returns (F ≈ 5, p ≈ 0.009) — REVERSED to null
+  (p = 0.096 / 0.149) under filtered labels. A 3% relabeling killed a
+  "robust" finding, because smoothing preferentially assigns crash days to
+  Bear with hindsight, and those days carry the strongest flow-return
+  comovement. The paper now reports this reversal as a methodological
+  contribution (Section 6.3).
+- WML-Sideways strengthened (SR 1.667 → 1.726, t 3.24 → 3.34) — the
+  headline factor result was not look-ahead-driven and got cleaner.
+- Panel B's all-null-after-FDR conclusion held.
+
+*Note: an earlier version of this entry claimed a 0.00% label diff. That
+number came from a broken comparison (the baseline was regenerated after the
+fix, diffing the new labels against themselves). Corrected against git
+history. Logged here deliberately — verification scripts need verification
+too.*
+
+**Interview answer:**  
+*"hmmlearn's predict_proba runs forward-backward — smoothed posteriors that
+embed future data, and lagging a smoothed label doesn't remove the
+look-ahead. I replaced it with an explicit forward recursion. Only 3% of
+days relabeled, but one of my paper's headline findings reversed to null —
+smoothing had been assigning crash days to the Bear regime with hindsight,
+manufacturing within-regime predictability. I published the reversal as a
+finding. Bonus lesson: my first diff script reported 0.00% change because it
+compared the new labels to themselves — so I now verify my verification
+scripts against git history."*
+
+---
+
+### Bug 18 — CRITICAL: XGBoost early-stops on the test set (data leakage)
 **Severity:** CRITICAL  
 **File fixed:** `alpha-core/alpha_core/xgb_predictor.py` (~line 323)
 
-**Original code:**
+**What the bug was:**
 ```python
 model.fit(X_train, y_train,
     eval_set=[(X_test, y_test)],   # ← TEST SET used for model selection
     ...)
 ```
 
-**Fixed code:**
+**Why it matters:**  
+Early-stopping selects the number of boosting rounds by minimising loss on the eval set. Using the test set means it participated in model selection — every reported test metric was optimistically biased. Since `ic_test` flows downstream to gate signals (`> 0.05`) and calibrate BL view confidence, this inflated view confidence everywhere.
+
+**The fix:**  
+Carved a val slice from the end of the train window (July–Dec 2023, ~15%).
 ```python
-# Carve val slice from end of train window (July–Dec 2023, ~15%)
 train_pure = train[train.index < VAL_START]
 val        = train[train.index >= VAL_START]
 
@@ -540,67 +598,34 @@ model.fit(X_train_pure, y_train_pure,
     ...)
 ```
 
-**Why it matters:**  
-Early-stopping selects the number of boosting rounds by minimising loss on the eval set. Using the test set here means the test set participated in model selection — every reported test metric (IC, R², DirAcc) was optimistically biased. `ic_test` flows downstream: it gates signals in `main.py` (`ic_test > 0.05`) and calibrates BL view confidence (Idzorek Ω). Inflated IC → inflated view confidence everywhere.
+**Before/After:**
+mean test IC 0.071 → 0.0021 after retraining on filtered labels; 1/14 stocks clear the signal gate
 
 **Interview answer:**  
-*"My early stopping used the test fold, which leaks model-selection information. I re-split train into train/val (last 15% of the training window), and test IC fell from the biased value to the honest number. That drop is itself the audit story — it's the clean IC. It still cleared my 0.05 gate on N stocks."*
+*"My early stopping used the test fold, leaking model-selection information. I carved a val slice from the end of the train window. The leak-free XGBoost has essentially no edge (honest IC ~0), which the gate correctly identifies to keep it out of the book, allowing the Black-Litterman posterior to correctly revert to the prior."*
 
 ---
 
-### Bug A2 — CRITICAL: Historical regime labels use full-sample Viterbi (look-ahead)
-**Severity:** CRITICAL  
-**Files fixed:** `alpha-core/alpha_core/hmm_regime.py` (~line 589), `alpha-core/alpha_core/kelly_sizing.py` (docstring ~line 107)
-
-**Original code:**
-```python
-regime_ints = model.predict(X)   # Viterbi: uses ALL data → look-ahead for historical rows
-```
-
-**Fixed code:**
-```python
-# Forward-algorithm filtered probabilities — P(state | obs_1..obs_t)
-# Conditions ONLY on past data at each t — no look-ahead
-filtered_probs = model.predict_proba(X)          # shape: (T, K)
-regime_ints    = filtered_probs.argmax(axis=1)   # filtered estimate per date
-
-# Viterbi kept for live readout ONLY (last row is identical to filtered at T)
-viterbi_ints             = model.predict(X)
-today_regime_int_viterbi = int(viterbi_ints[-1])
-```
-
-**Why it matters:**  
-Viterbi decodes the globally most probable path — the label on any historical date uses data from after that date. Those smoothed labels were consumed as a lagged feature in `xgb_predictor` (line 261) and as Kelly's regime gate history. The SSRN paper explicitly used forward-pass probabilities to avoid this bias; the production code contradicted the paper. Anyone reading both would catch this immediately.  
-
-The docstring in `kelly_sizing.py` was also fixed: it incorrectly claimed Viterbi rows were "most-probable state given all history up to that date" — which is only true for the forward pass.
-
-**Interview answer:**  
-*"Viterbi labels historical dates using future data — it's a smoothed sequence, not a causal one. My paper used forward-pass filtered probabilities to avoid this; my code used Viterbi. I switched historical decoding to predict_proba() argmax (causal, no look-ahead) and kept Viterbi only for the terminal live readout where both methods are equivalent."*
-
----
-
-### Bug B1 — HIGH: abs(full_kelly) converts negative edge into positive size
+### Bug 19 — HIGH: Kelly abs() on negative edge
 **Severity:** HIGH  
 **File fixed:** `alpha-core/alpha_core/kelly_sizing.py` (lines ~194, ~312)
 
-**Original code:**
+**What the bug was:**
 ```python
 effective_f = HALF_KELLY * abs(full_kelly) * regime_mult
 ```
 
-**Fixed code:**
+**Why it matters:**  
+Kelly's $f^* = \mu/\sigma^2$ is negative when the expected return ($\mu$) is negative, which mathematically means 'no bet'. Taking `abs()` converted negative-edge pairs into the exact same bet size as positive-edge pairs, completely bypassing the edge requirement.
+
+**The fix:**
 ```python
 # Kelly says "no bet" when μ ≤ 0; floor at 0 so size collapses correctly
 effective_f = HALF_KELLY * max(full_kelly, 0.0) * regime_mult
 ```
 
-**Also removed:** The unreachable `action = "SHORT"` branch in `compute_factor_kelly()`. Negative alpha stocks were already SKIPped before reaching that branch — dead code.
-
-**Why it matters:**  
-A pair with negative spread drift (μ < 0) received the same Kelly size as a positive-edge pair. Trade direction came from the z-score signal, but magnitude should collapse to zero when there's no edge. `abs()` was mathematically wrong — Kelly explicitly requires a signed edge.
-
 **Interview answer:**  
-*"Kelly's f* = μ/σ² is negative when μ is negative, meaning 'no bet'. Taking abs() converted negative-edge pairs into same-sized positive bets. I floored at 0 so the size correctly goes to zero when there's no edge."*
+*"Kelly sizing explicitly requires a positive edge. A negative Kelly size means 'don't bet'. Taking the absolute value of the Kelly fraction forced the sizing module to allocate full capital to negative-edge trades. I floored it at 0.0 so the size correctly collapses when there is no edge."*
 
 ---
 
@@ -634,6 +659,29 @@ The `# ... rest unchanged` comment is physical evidence of careless AI-assisted 
 
 ---
 
+### Bug 21 — CRITICAL: Execution gate reads stale position file
+**Severity:** CRITICAL  
+**File fixed:** `alpha-core/alpha_core/alpaca_gate.py`
+
+**What the bug was:**
+The Alpaca execution gate (M10) read `kelly_positions_factor_gated.csv` blindly to size live trades. If the FinBERT sentiment module (M6) failed or was skipped, the gate would execute trades based on stale, multi-week-old positions from the last successful FinBERT run.
+
+**Why it matters:**  
+This is a classic "stale data fallthrough" vulnerability. A failure upstream silently results in executing outdated orders, which could be catastrophic in live trading. The gate must aggressively refuse to trade if its input is older than its upstream dependency.
+
+**The fix:**  
+Added a strict file-age guard in `alpaca_gate.py`:
+```python
+if gated_path.stat().st_mtime < kelly_path.stat().st_mtime:
+    logger.error("STALE DATA GUARD: ... Refusing to trade.")
+    return pd.DataFrame()
+```
+
+**Interview answer:**  
+*"During live testing, I caught a pipeline break where the sentiment module failed, but the execution gate blindly sized orders using a three-week-old gated file. I added a strict file-age guard: if the final gated position file is older than the upstream Kelly position file, the gate refuses to trade. Upstream failure must mean downstream halt, not silent stale execution."*
+
+---
+
 ## UPDATED SUMMARY TABLE
 
 | # | Severity | File | Issue | Status |
@@ -654,8 +702,9 @@ The `# ... rest unchanged` comment is physical evidence of careless AI-assisted 
 | 14 | CRITICAL | xgb_predictor.py | XGBoost 1-day staleness (lookahead prevention) | ✅ Fixed |
 | 15 | CRITICAL | kelly_sizing.py | Pairs Kelly zero-crossing return blowup | ✅ Fixed |
 | 16 | MEDIUM | backtester.py | Log returns compounded as simple returns | ✅ Fixed |
-| A1 | CRITICAL | xgb_predictor.py | Early stopping on test set → biased IC | ✅ Fixed |
-| A2 | CRITICAL | hmm_regime.py, kelly_sizing.py | Viterbi look-ahead on historical labels | ✅ Fixed |
-| B1 | HIGH | kelly_sizing.py | abs(full_kelly) sizes negative-edge pairs | ✅ Fixed |
+| 17 | CRITICAL | hmm_regime.py | predict_proba is smoothed, not filtered | ✅ Fixed |
+| 18 | CRITICAL | xgb_predictor.py | Early stopping on test set → biased IC | ✅ Fixed |
+| 19 | HIGH | kelly_sizing.py | abs(full_kelly) sizes negative-edge pairs | ✅ Fixed |
+| 21 | CRITICAL | alpaca_gate.py | Execution gate reads stale position file | ✅ Fixed |
 | B2 | HIGH | var_calculator.py, pca_decomp.py, monte_carlo_var.py | Broken logger calls crash on run/import | ✅ Fixed |
 | B3 | HIGH | dcc_engine.py, monte_carlo_var.py | AI-paste artifacts: duplicate blocks + marker comment | ✅ Fixed |
